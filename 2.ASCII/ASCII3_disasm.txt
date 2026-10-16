@@ -1,0 +1,72 @@
+
+ASCII3.exe:     file format pei-x86-64
+
+
+Disassembly of section .text:
+
+0000000140001440 <main>:
+
+#include <stdio.h>
+
+int main(void)
+{
+   140001440:	55                   	push   rbp
+   140001441:	48 89 e5             	mov    rbp,rsp
+   140001444:	48 83 ec 30          	sub    rsp,0x30
+   140001448:	e8 23 01 00 00       	call   140001570 <__main>
+    int i, j;
+    char ch = 'a';
+   14000144d:	c6 45 f7 61          	mov    BYTE PTR [rbp-0x9],0x61
+
+    for (i = 0; i < 2; i++)
+   140001451:	c7 45 fc 00 00 00 00 	mov    DWORD PTR [rbp-0x4],0x0
+   140001458:	eb 36                	jmp    140001490 <main+0x50>
+    {
+        for (j = 0; j < 13; j++)
+   14000145a:	c7 45 f8 00 00 00 00 	mov    DWORD PTR [rbp-0x8],0x0
+   140001461:	eb 19                	jmp    14000147c <main+0x3c>
+        {
+            putchar(ch);
+   140001463:	0f be 45 f7          	movsx  eax,BYTE PTR [rbp-0x9]
+   140001467:	89 c1                	mov    ecx,eax
+   140001469:	e8 f2 12 00 00       	call   140002760 <putchar>
+            ch++;
+   14000146e:	0f b6 45 f7          	movzx  eax,BYTE PTR [rbp-0x9]
+   140001472:	83 c0 01             	add    eax,0x1
+   140001475:	88 45 f7             	mov    BYTE PTR [rbp-0x9],al
+        for (j = 0; j < 13; j++)
+   140001478:	83 45 f8 01          	add    DWORD PTR [rbp-0x8],0x1
+   14000147c:	83 7d f8 0c          	cmp    DWORD PTR [rbp-0x8],0xc
+   140001480:	7e e1                	jle    140001463 <main+0x23>
+        }
+
+        putchar('\n');
+   140001482:	b9 0a 00 00 00       	mov    ecx,0xa
+   140001487:	e8 d4 12 00 00       	call   140002760 <putchar>
+    for (i = 0; i < 2; i++)
+   14000148c:	83 45 fc 01          	add    DWORD PTR [rbp-0x4],0x1
+   140001490:	83 7d fc 01          	cmp    DWORD PTR [rbp-0x4],0x1
+   140001494:	7e c4                	jle    14000145a <main+0x1a>
+    }
+
+    return 0;
+   140001496:	b8 00 00 00 00       	mov    eax,0x0
+}
+   14000149b:	48 83 c4 30          	add    rsp,0x30
+   14000149f:	5d                   	pop    rbp
+   1400014a0:	c3                   	ret
+   1400014a1:	90                   	nop
+   1400014a2:	90                   	nop
+   1400014a3:	90                   	nop
+   1400014a4:	90                   	nop
+   1400014a5:	90                   	nop
+   1400014a6:	90                   	nop
+   1400014a7:	90                   	nop
+   1400014a8:	90                   	nop
+   1400014a9:	90                   	nop
+   1400014aa:	90                   	nop
+   1400014ab:	90                   	nop
+   1400014ac:	90                   	nop
+   1400014ad:	90                   	nop
+   1400014ae:	90                   	nop
+   1400014af:	90                   	nop

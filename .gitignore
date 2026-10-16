@@ -1,0 +1,50 @@
+# 汇编 / C 编译和链接产物（源代码 .ASM / .C / .s 不忽略）
+*.EXE
+*.exe
+*.COM
+*.com
+*.OBJ
+*.obj
+*.o
+*.O
+*.MAP
+*.map
+*.LST
+*.lst
+*.CRF
+*.crf
+*.PDB
+*.pdb
+*.ILK
+*.ilk
+*.IDB
+*.idb
+*.TDS
+*.tds
+
+# 本地 DOS 开发工具（不带扩展名的文件；带 .EXE 的已由上面规则忽略）
+/MASM
+/LINK
+/README.DOC
+
+# 本机 DOSBox-X 配置（例如自动挂载的绝对路径）
+/dosbox-x.conf
+
+# 编辑器 / 操作系统临时文件
+.vscode/
+.idea/
+.history/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+*.temp
+
+# 调试生成的临时日志
+*.log
+*.stackdump
+*.dSYM/
