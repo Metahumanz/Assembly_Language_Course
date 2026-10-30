@@ -1,0 +1,52 @@
+
+; main函数：重点观察CALL、RET及字符串输出
+
+MUL9_G.exe:     file format pei-x86-64
+
+Disassembly of section .text:
+
+00000001400014eb <main>:
+    }
+}
+
+/* 主函数 */
+int main(void)
+{
+   1400014eb: 55                    push   rbp                     ; 保存原RBP
+   1400014ec: 48 89 e5              mov    rbp,rsp                 ; 建立栈帧
+   1400014ef: 48 83 ec 20           sub    rsp,0x20                ; 预留32字节调用栈空间
+   1400014f3: e8 f8 00 00 00        call   1400015f0 <__main>     ; MinGW运行时初始化辅助函数
+
+    printf("x y\n");
+   1400014f8: 48 8d 05 10 2b 00 00  lea    rax,[rip+0x2b10]    # 14000400f <.rdata+0xf>
+   ; 获取标题字符串在只读数据段中的地址
+
+   1400014ff: 48 89 c1              mov    rcx,rax                 ; 将字符串地址作为第1参数
+   140001502: e8 39 13 00 00        call   140002840 <puts>      ; 调用puts输出标题
+
+    check_table();
+   140001507: e8 61 ff ff ff        call   14000146d <check_table> ; 调用乘法表检查函数
+
+    printf("\naccomplish!\n");
+   14000150c: 48 8d 05 00 2b 00 00  lea    rax,[rip+0x2b00]    # 140004013 <.rdata+0x13>
+   ; 获取结束提示字符串地址
+
+   140001513: 48 89 c1              mov    rcx,rax                 ; 第1参数=字符串地址
+   140001516: e8 25 13 00 00        call   140002840 <puts>      ; 输出结束提示
+
+    return 0;
+   14000151b: b8 00 00 00 00        mov    eax,0x0                ; 返回值0
+}
+   140001520: 48 83 c4 20           add    rsp,0x20                ; 回收栈空间
+   140001524: 5d                    pop    rbp                     ; 恢复原RBP
+   140001525: c3                    ret                           ; 返回调用者
+   140001526: 90                    nop                           ; 以下NOP用于填充/对齐
+   140001527: 90                    nop
+   140001528: 90                    nop
+   140001529: 90                    nop
+   14000152a: 90                    nop
+   14000152b: 90                    nop
+   14000152c: 90                    nop
+   14000152d: 90                    nop
+   14000152e: 90                    nop
+   14000152f: 90                    nop

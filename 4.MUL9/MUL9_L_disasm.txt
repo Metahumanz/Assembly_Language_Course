@@ -1,0 +1,137 @@
+
+; 局部数组版：重点观察局部数组的初始化和栈寻址
+; table起始地址=[rbp-0x60]，共81字节
+; 与全局版相比，数组不直接通过全局.data地址访问
+
+MUL9_L.exe:     file format pei-x86-64
+
+Disassembly of section .text:
+
+000000014000146d <check_table>:
+    printf("%d %d   error\n", row, col);
+}
+
+/* 检查整个乘法表 */
+void check_table(void)
+{
+   14000146d: 55                    push   rbp                        ; 保存原RBP
+   14000146e: 48 89 e5              mov    rbp,rsp                    ; 建立栈帧
+   140001471: 48 83 c4 80           add    rsp,0xffffffffffffff80   ; RSP减128，为局部数组等数据分配栈空间
+
+    /* 局部数组：通常在当前函数的栈帧中 */
+    unsigned char table[9][9] = {
+
+   ; 下面将9行数据写入栈内存，每行前8字节整体写入，第9字节单独写入
+   ; movabs是将64位立即数装入RAX
+   ; 由于x86采用小端序，写入内存时低位字节位于低地址
+
+   140001475: 48 b8 07 02 03 04 05  movabs rax,0x807060504030207  ; 第1行前8字节
+   14000147c: 06 07 08
+   14000147f: 48 89 45 a0           mov    QWORD PTR [rbp-0x60],rax ; 写入栈内存
+   140001483: c6 45 a8 09           mov    BYTE PTR [rbp-0x58],0x9 ; 第1行第9字节
+
+   140001487: 48 b8 02 04 07 08 0a  movabs rax,0x100e0c0a08070402 ; 第2行前8字节
+   14000148e: 0c 0e 10
+   140001491: 48 89 45 a9           mov    QWORD PTR [rbp-0x57],rax
+   140001495: c6 45 b1 12           mov    BYTE PTR [rbp-0x4f],0x12 ; 第2行第9字节，18
+
+   140001499: 48 b8 03 06 09 0c 0f  movabs rax,0x1815120f0c090603 ; 第3行前8字节
+   1400014a0: 12 15 18
+   1400014a3: 48 89 45 b2           mov    QWORD PTR [rbp-0x4e],rax
+   1400014a7: c6 45 ba 1b           mov    BYTE PTR [rbp-0x46],0x1b ; 第3行第9字节，27
+
+   1400014ab: 48 b8 04 08 0c 10 07  movabs rax,0x201c1807100c0804 ; 第4行前8字节，含错误值7
+   1400014b2: 18 1c 20
+   1400014b5: 48 89 45 bb           mov    QWORD PTR [rbp-0x45],rax
+   1400014b9: c6 45 c3 24           mov    BYTE PTR [rbp-0x3d],0x24 ; 第4行第9字节，36
+
+   1400014bd: 48 b8 05 0a 0f 14 19  movabs rax,0x28231e19140f0a05 ; 第5行前8字节
+   1400014c4: 1e 23 28
+   1400014c7: 48 89 45 c4           mov    QWORD PTR [rbp-0x3c],rax
+   1400014cb: c6 45 cc 2d           mov    BYTE PTR [rbp-0x34],0x2d ; 第5行第9字节，45
+
+   1400014cf: 48 b8 06 0c 12 18 1e  movabs rax,0x302a071e18120c06 ; 第6行前8字节，含错误值7
+   1400014d6: 07 2a 30
+   1400014d9: 48 89 45 cd           mov    QWORD PTR [rbp-0x33],rax
+   1400014dd: c6 45 d5 36           mov    BYTE PTR [rbp-0x2b],0x36 ; 第6行第9字节，54
+
+   1400014e1: 48 b8 07 0e 15 1c 23  movabs rax,0x38312a231c150e07 ; 第7行前8字节
+   1400014e8: 2a 31 38
+   1400014eb: 48 89 45 d6           mov    QWORD PTR [rbp-0x2a],rax
+   1400014ef: c6 45 de 3f           mov    BYTE PTR [rbp-0x22],0x3f ; 第7行第9字节，63
+
+   1400014f3: 48 b8 08 10 18 20 28  movabs rax,0x738302820181008 ; 第8行前8字节，含错误值7
+   1400014fa: 30 38 07
+   1400014fd: 48 89 45 df           mov    QWORD PTR [rbp-0x21],rax
+   140001501: c6 45 e7 48           mov    BYTE PTR [rbp-0x19],0x48 ; 第8行第9字节，72
+
+   140001505: 48 b8 09 12 1b 24 2d  movabs rax,0x483f362d241b1209 ; 第9行前8字节
+   14000150c: 36 3f 48
+   14000150f: 48 89 45 e8           mov    QWORD PTR [rbp-0x18],rax
+   140001513: c6 45 f0 51           mov    BYTE PTR [rbp-0x10],0x51 ; 第9行第9字节，81
+   ; 至此81个局部数组元素初始化完成
+
+        {8, 16, 24, 32, 40, 48, 56, 7, 72},
+        {9, 18, 27, 36, 45, 54, 63, 72, 81}
+    };
+
+    /* 双重循环检查 */
+    for (int row = 1; row <= 9; ++row) {
+   140001517: c7 45 fc 01 00 00 00  mov    DWORD PTR [rbp-0x4],0x1  ; row=1
+   14000151e: eb 5b                 jmp    14000157b <check_table+0x10e> ; 跳转判断row
+
+        for (int col = 1; col <= 9; ++col) {
+   140001520: c7 45 f8 01 00 00 00  mov    DWORD PTR [rbp-0x8],0x1  ; col=1
+   140001527: eb 48                 jmp    140001571 <check_table+0x104> ; 跳转判断col
+
+            if (table[row - 1][col - 1] != row * col) {
+   140001529: 8b 45 fc              mov    eax,DWORD PTR [rbp-0x4]   ; EAX=row
+   14000152c: 83 e8 01              sub    eax,0x1                   ; EAX=row-1
+   14000152f: 8b 55 f8              mov    edx,DWORD PTR [rbp-0x8]   ; EDX=col
+   140001532: 83 ea 01              sub    edx,0x1                   ; EDX=col-1
+   140001535: 48 63 ca              movsxd rcx,edx                  ; RCX=col-1
+   140001538: 48 63 d0              movsxd rdx,eax                  ; RDX=row-1
+   14000153b: 48 89 d0              mov    rax,rdx                    ; RAX=row-1
+   14000153e: 48 c1 e0 03           shl    rax,0x3                   ; RAX=(row-1)*8
+   140001542: 48 01 d0              add    rax,rdx                    ; RAX=(row-1)*9
+
+   ; 下面是与全局版最大的区别：使用RBP定位局部数组
+
+   140001545: 48 01 e8              add    rax,rbp                    ; 加入当前栈帧基址
+   140001548: 48 01 c8              add    rax,rcx                    ; 加入列偏移
+   14000154b: 48 83 e8 60           sub    rax,0x60                   ; 减去局部数组起始偏移0x60
+
+   ; 此时RAX=RBP-0x60+(row-1)*9+(col-1)
+   ; 这就是table[row-1][col-1]的实际内存地址
+
+   14000154f: 0f b6 00              movzx  eax,BYTE PTR [rax]        ; 读取表中的1字节
+   140001552: 0f b6 d0              movzx  edx,al                    ; EDX=实际值
+   140001555: 8b 45 fc              mov    eax,DWORD PTR [rbp-0x4]   ; EAX=row
+   140001558: 0f af 45 f8           imul   eax,DWORD PTR [rbp-0x8]  ; EAX=row*col
+   14000155c: 39 c2                 cmp    edx,eax                    ; 实际值与正确乘积比较
+   14000155e: 74 0d                 je     14000156d <check_table+0x100> ; 相等则跳过报错
+
+                report_error(row, col);
+   140001560: 8b 55 f8              mov    edx,DWORD PTR [rbp-0x8]   ; 第2参数col
+   140001563: 8b 45 fc              mov    eax,DWORD PTR [rbp-0x4]   ; EAX=row
+   140001566: 89 c1                 mov    ecx,eax                    ; 第1参数row
+   140001568: e8 d3 fe ff ff        call   140001440 <report_error> ; 调用错误输出函数
+
+        for (int col = 1; col <= 9; ++col) {
+   14000156d: 83 45 f8 01           add    DWORD PTR [rbp-0x8],0x1  ; col++
+   140001571: 83 7d f8 09           cmp    DWORD PTR [rbp-0x8],0x9  ; 比较col与9
+   140001575: 7e b2                 jle    140001529 <check_table+0xbc> ; col<=9继续循环
+
+    for (int row = 1; row <= 9; ++row) {
+   140001577: 83 45 fc 01           add    DWORD PTR [rbp-0x4],0x1  ; row++
+   14000157b: 83 7d fc 09           cmp    DWORD PTR [rbp-0x4],0x9  ; 比较row与9
+   14000157f: 7e 9f                 jle    140001520 <check_table+0xb3> ; row<=9继续循环
+            }
+        }
+    }
+}
+   140001581: 90                    nop                               ; 空操作
+   140001582: 90                    nop                               ; 空操作
+   140001583: 48 83 ec 80           sub    rsp,0xffffffffffffff80  ; RSP增加128，恢复栈空间
+   140001587: 5d                    pop    rbp                        ; 恢复原RBP
+   140001588: c3                    ret                               ; 返回main

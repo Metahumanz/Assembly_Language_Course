@@ -1,0 +1,80 @@
+
+; 全局数组版：重点观察二维数组寻址、乘法比较及双重循环
+; row位于[rbp-0x4]，col位于[rbp-0x8]
+; table位于全局数据段.data
+
+MUL9_G.exe:     file format pei-x86-64
+
+Disassembly of section .text:
+
+000000014000146d <check_table>:
+    printf("%d %d   error\n", row, col);
+}
+
+/* 检查整个乘法表 */
+void check_table(void)
+{
+   14000146d: 55                    push   rbp                         ; 保存原RBP
+   14000146e: 48 89 e5              mov    rbp,rsp                     ; 建立栈帧
+   140001471: 48 83 ec 30           sub    rsp,0x30                    ; 分配48字节栈空间
+
+    for (int row = 1; row <= 9; ++row) {
+   140001475: c7 45 fc 01 00 00 00  mov    DWORD PTR [rbp-0x4],0x1    ; row=1
+   14000147c: eb 5f                 jmp    1400014dd <check_table+0x70> ; 先检查外层循环条件
+
+        for (int col = 1; col <= 9; ++col) {
+   14000147e: c7 45 f8 01 00 00 00  mov    DWORD PTR [rbp-0x8],0x1    ; col=1
+   140001485: eb 4c                 jmp    1400014d3 <check_table+0x66> ; 先检查内层循环条件
+
+            if (table[row - 1][col - 1] != row * col) {
+   140001487: 8b 45 fc              mov    eax,DWORD PTR [rbp-0x4]    ; EAX=row
+   14000148a: 83 e8 01              sub    eax,0x1                    ; EAX=row-1
+   14000148d: 8b 55 f8              mov    edx,DWORD PTR [rbp-0x8]    ; EDX=col
+   140001490: 83 ea 01              sub    edx,0x1                    ; EDX=col-1
+
+   140001493: 48 63 ca              movsxd rcx,edx                   ; RCX=col-1，符号扩展至64位
+   140001496: 48 63 d0              movsxd rdx,eax                   ; RDX=row-1，符号扩展至64位
+   140001499: 48 89 d0              mov    rax,rdx                     ; RAX=row-1
+   14000149c: 48 c1 e0 03           shl    rax,0x3                    ; RAX=(row-1)*8
+   1400014a0: 48 01 d0              add    rax,rdx                     ; RAX=(row-1)*9
+   1400014a3: 48 8d 14 08           lea    rdx,[rax+rcx*1]           ; RDX=(row-1)*9+(col-1)
+
+   ; 上面计算的是二维数组展开成一维后的字节偏移
+
+   1400014a7: 48 8d 05 52 1b 00 00  lea    rax,[rip+0x1b52]        # 140003000 <__data_start__>
+   ; RIP相对寻址，取得全局数组所在的数据区地址
+   ; 本程序中table位于.data开头，和__data_start__地址相同
+
+   1400014ae: 48 01 d0              add    rax,rdx                     ; 数组基址+元素偏移
+   1400014b1: 0f b6 00              movzx  eax,BYTE PTR [rax]         ; 读取表中1字节，并零扩展到EAX
+   1400014b4: 0f b6 d0              movzx  edx,al                     ; EDX=表中实际值
+
+   1400014b7: 8b 45 fc              mov    eax,DWORD PTR [rbp-0x4]    ; EAX=row
+   1400014ba: 0f af 45 f8           imul   eax,DWORD PTR [rbp-0x8]   ; EAX=row*col
+   1400014be: 39 c2                 cmp    edx,eax                     ; 比较实际值与正确乘积
+   1400014c0: 74 0d                 je     1400014cf <check_table+0x62> ; 相等则跳过报错
+
+                report_error(row, col);
+   1400014c2: 8b 55 f8              mov    edx,DWORD PTR [rbp-0x8]    ; 第2参数col放入EDX
+   1400014c5: 8b 45 fc              mov    eax,DWORD PTR [rbp-0x4]    ; EAX=row
+   1400014c8: 89 c1                 mov    ecx,eax                     ; 第1参数row放入ECX
+   1400014ca: e8 71 ff ff ff        call   140001440 <report_error>  ; 调用错误输出函数
+
+        for (int col = 1; col <= 9; ++col) {
+   1400014cf: 83 45 f8 01           add    DWORD PTR [rbp-0x8],0x1   ; col++
+   1400014d3: 83 7d f8 09           cmp    DWORD PTR [rbp-0x8],0x9   ; 判断col<=9
+   1400014d7: 7e ae                 jle    140001487 <check_table+0x1a> ; 满足则继续内层循环
+
+    for (int row = 1; row <= 9; ++row) {
+   1400014d9: 83 45 fc 01           add    DWORD PTR [rbp-0x4],0x1   ; row++
+   1400014dd: 83 7d fc 09           cmp    DWORD PTR [rbp-0x4],0x9   ; 判断row<=9
+   1400014e1: 7e 9b                 jle    14000147e <check_table+0x11> ; 满足则开始新的一行
+            }
+        }
+    }
+}
+   1400014e3: 90                    nop                                ; 空操作
+   1400014e4: 90                    nop                                ; 空操作
+   1400014e5: 48 83 c4 30           add    rsp,0x30                    ; 释放栈空间
+   1400014e9: 5d                    pop    rbp                         ; 恢复RBP
+   1400014ea: c3                    ret                                ; 返回main
