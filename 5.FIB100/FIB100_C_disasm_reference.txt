@@ -1,0 +1,233 @@
+; ==============================================================================
+; FIB100_C_disasm_中文注释.txt
+; 原始文件：粘贴的文本 (1).txt  (MinGW / Windows x86-64 / GCC -O0)
+; 处理原则：保留原始反汇编的地址、机器码、助记符与C源码；行尾加中文注释。
+; 注释以分号 ; 开始，仅供学习，不是可以直接汇编的ASM源文件。
+;
+; 【重点看】
+;   140001440  fib          : 递归计算+记忆化缓存、栈帧、128位ADD/ADC
+;   1400014f0  print_u128   : GCC辅助128位除法/取模，构造十进制数字
+;   1400015d1  main         : 读取输入、检查范围、调用fib并输出
+;   140002780  __udivti3    : GCC内建的128位无符号除法辅助函数
+;   1400028c0  __umodti3    : GCC内建的128位无符号取模辅助函数
+;
+; 其它大段均是MinGW/GCC自带运行库，不应误认成这道作业的源代码。
+;
+; 【调用栈】Windows x64中第1整数参数通常放RCX/ECX；CALL写入返回地址；
+;   函数入口保存寄存器+sub rsp形成栈帧，结尾add rsp+pop+ret逐步恢复。
+; 【128位整数】一个u128=16字节，分成2个64位字；低位ADD、高位ADC传进位。
+; 【返回值】此GCC构建中的fib用XMM0返回128位结果；print_u128接收其内存地址。
+; 【注意】汇编与DOSBox的8086 16位调用约定完全不同，不要混淆。
+; ============================================================================== 
+
+; ===== 以下仅保留本题核心3个函数的原始指令和中文注释 =====
+
+; 
+; =================================================================
+; 【fib】 【核心】递归+缓存计算F(n)，通过128位分段加法处理大整数
+; =================================================================
+0000000140001440 <fib>:
+static unsigned char ready[101] = {1, 1};
+
+/* noinline keeps a separate recursive function visible in disassembly. */
+__attribute__((noinline))
+static u128 fib(unsigned int n)
+{
+   140001440:	55                   	push   rbp    ; 保存旧的RBP（栈帧基准寄存器）
+   140001441:	53                   	push   rbx    ; 保存RBX（被调用者需要恢复）
+   140001442:	48 83 ec 58          	sub    rsp,0x58    ; RSP减0x58=88字节，为本次fib调用分配栈帧
+   140001446:	48 8d 6c 24 50       	lea    rbp,[rsp+0x50]    ; 令RBP=RSP+0x50，建立局部变量访问基准
+   14000144b:	89 4d 20             	mov    DWORD PTR [rbp+0x20],ecx    ; 把RCX中的参数n保存到[rbp+0x20]（Windows x64首个整数参数在ECX中）
+    if (!ready[n]) {
+   14000144e:	8b 45 20             	mov    eax,DWORD PTR [rbp+0x20]    ; 把参数n读入EAX，准备作为数组下标
+   140001451:	48 8d 15 08 22 00 00 	lea    rdx,[rip+0x2208]        # 140003660 <ready>    ; 使用RIP相对寻址得到ready[]首地址，放入RDX
+   140001458:	0f b6 04 10          	movzx  eax,BYTE PTR [rax+rdx*1]    ; 读取ready[n]的1字节值，并零扩展至EAX
+   14000145c:	84 c0                	test   al,al    ; 检查AL是否为0，更新ZF标志位
+   14000145e:	75 60                	jne    1400014c0 <fib+0x80>    ; ready[n]!=0则跳转到返回缓存结果处，不再递归
+        u128 a = fib(n - 1);
+   140001460:	8b 45 20             	mov    eax,DWORD PTR [rbp+0x20]    ; 取出当前参数n
+   140001463:	83 e8 01             	sub    eax,0x1    ; EAX=n-1，计算第一个递归实参
+   140001466:	89 c1                	mov    ecx,eax    ; 将n-1放入ECX（第1个参数寄存器）
+   140001468:	e8 d3 ff ff ff       	call   140001440 <fib>    ; 递归CALL fib(n-1)：CPU压入返回地址、跳到fib入口
+   14000146d:	0f 29 45 f0          	movaps XMMWORD PTR [rbp-0x10],xmm0    ; 把XMM0返回的128位F(n-1)存到栈上变量a（16字节）
+        u128 b = fib(n - 2);
+   140001471:	8b 45 20             	mov    eax,DWORD PTR [rbp+0x20]    ; 重新取n（上次调用可能改动EAX）
+   140001474:	83 e8 02             	sub    eax,0x2    ; EAX=n-2，计算第二个递归实参
+   140001477:	89 c1                	mov    ecx,eax    ; ECX=n-2，准备递归调用参数
+   140001479:	e8 c2 ff ff ff       	call   140001440 <fib>    ; 递归CALL fib(n-2)，形成第二个递归分支
+   14000147e:	0f 29 45 e0          	movaps XMMWORD PTR [rbp-0x20],xmm0    ; 把XMM0中的128位F(n-2)存为局部变量b
+        memo[n] = a + b;
+   140001482:	48 8b 4d f0          	mov    rcx,QWORD PTR [rbp-0x10]    ; 读取a的低64位到RCX
+   140001486:	48 8b 5d f8          	mov    rbx,QWORD PTR [rbp-0x8]    ; 读取a的高64位到RBX
+   14000148a:	48 8b 45 e0          	mov    rax,QWORD PTR [rbp-0x20]    ; 读取b的低64位到RAX
+   14000148e:	48 8b 55 e8          	mov    rdx,QWORD PTR [rbp-0x18]    ; 读取b的高64位到RDX
+   140001492:	48 01 c8             	add    rax,rcx    ; 低64位相加：RAX=b.low+a.low，产生进位CF
+   140001495:	48 11 da             	adc    rdx,rbx    ; 高64位带进位相加：RDX=b.high+a.high+CF，实现128位加法
+   140001498:	8b 4d 20             	mov    ecx,DWORD PTR [rbp+0x20]    ; 重新读取n，准备计算memo[n]位置
+   14000149b:	48 c1 e1 04          	shl    rcx,0x4    ; n左移4位，相当于n×16（每个u128占16字节）
+   14000149f:	49 89 c8             	mov    r8,rcx    ; 将数组字节偏移n×16保存到R8
+   1400014a2:	48 8d 0d 57 1b 00 00 	lea    rcx,[rip+0x1b57]        # 140003000 <__data_start__>    ; 得到全局数据区起始地址；该处是memo数组的基址
+   1400014a9:	49 89 04 08          	mov    QWORD PTR [r8+rcx*1],rax    ; 将相加结果的低64位RAX写到memo[n]前8字节
+   1400014ad:	49 89 54 08 08       	mov    QWORD PTR [r8+rcx*1+0x8],rdx    ; 将高64位RDX写到memo[n]后8字节
+        ready[n] = 1;
+   1400014b2:	8b 45 20             	mov    eax,DWORD PTR [rbp+0x20]    ; 重新读取下标n
+   1400014b5:	48 8d 15 a4 21 00 00 	lea    rdx,[rip+0x21a4]        # 140003660 <ready>    ; 再次取得ready[]首地址
+   1400014bc:	c6 04 10 01          	mov    BYTE PTR [rax+rdx*1],0x1    ; ready[n]=1，标记该项已计算，供后续调用直接复用
+    }
+    return memo[n];
+   1400014c0:	8b 45 20             	mov    eax,DWORD PTR [rbp+0x20]    ; 取下标n；已缓存的分支会直接来到这里
+   1400014c3:	48 c1 e0 04          	shl    rax,0x4    ; n×16，求memo[n]偏移
+   1400014c7:	48 89 c2             	mov    rdx,rax    ; 把偏移临时放入RDX
+   1400014ca:	48 8d 05 2f 1b 00 00 	lea    rax,[rip+0x1b2f]        # 140003000 <__data_start__>    ; 取得memo数组首地址
+   1400014d1:	48 8d 14 02          	lea    rdx,[rdx+rax*1]    ; RDX=数组首地址+n×16，即&memo[n]
+   1400014d5:	48 8b 02             	mov    rax,QWORD PTR [rdx]    ; 读取F(n)低64位到RAX
+   1400014d8:	48 8b 52 08          	mov    rdx,QWORD PTR [rdx+0x8]    ; 读取F(n)高64位到RDX
+   1400014dc:	48 89 45 d0          	mov    QWORD PTR [rbp-0x30],rax    ; 先把低64位结果写入栈上临时存储
+   1400014e0:	48 89 55 d8          	mov    QWORD PTR [rbp-0x28],rdx    ; 再把高64位结果写入临时存储
+   1400014e4:	66 0f 6f 45 d0       	movdqa xmm0,XMMWORD PTR [rbp-0x30]    ; 加载完整128位结果到XMM0，作为本次fib的返回值
+}
+   1400014e9:	48 83 c4 58          	add    rsp,0x58    ; 释放此fib调用栈帧的0x58字节
+   1400014ed:	5b                   	pop    rbx    ; 恢复调用前的RBX
+   1400014ee:	5d                   	pop    rbp    ; 恢复调用前的RBP
+   1400014ef:	c3                   	ret    ; RET弹出返回地址，回到上一级调用（递归回溯）
+
+; 
+; =================================================================
+; 【print_u128】 【核心】把128位无符号整数转换为十进制字符串打印
+; =================================================================
+00000001400014f0 <print_u128>:
+
+/* Print a 128-bit integer without relying on 64-bit printf formats. */
+static void print_u128(u128 value)
+{
+   1400014f0:	55                   	push   rbp    ; 保存调用前RBP
+   1400014f1:	53                   	push   rbx    ; 保存调用前RBX
+   1400014f2:	48 81 ec a8 00 00 00 	sub    rsp,0xa8    ; 为print_u128分配0xA8=168字节栈空间
+   1400014f9:	48 8d ac 24 a0 00 00 	lea    rbp,[rsp+0xa0]    ; 建立RBP相对寻址基准（本条指令的机器码跨到下一行）
+   140001500:	00 
+   140001501:	48 89 cb             	mov    rbx,rcx    ; RCX是指向128位实参副本的指针，存入RBX
+   140001504:	48 8b 03             	mov    rax,QWORD PTR [rbx]    ; 从参数指针读取value低64位
+   140001507:	48 8b 53 08          	mov    rdx,QWORD PTR [rbx+0x8]    ; 读取value高64位
+   14000150b:	48 89 45 b0          	mov    QWORD PTR [rbp-0x50],rax    ; 保存value低64位到局部变量
+   14000150f:	48 89 55 b8          	mov    QWORD PTR [rbp-0x48],rdx    ; 保存value高64位到局部变量
+    char buffer[40];
+    char *p = buffer + sizeof(buffer) - 1;
+   140001513:	48 8d 45 c0          	lea    rax,[rbp-0x40]    ; 取buffer[0]的地址
+   140001517:	48 83 c0 27          	add    rax,0x27    ; 地址+0x27（39），指向buffer[39]末尾位置
+   14000151b:	48 89 45 f8          	mov    QWORD PTR [rbp-0x8],rax    ; 存入指针变量p，之后从后向前填充数字
+    *p = '\0';
+   14000151f:	48 8b 45 f8          	mov    rax,QWORD PTR [rbp-0x8]    ; 取p指针值
+   140001523:	c6 00 00             	mov    BYTE PTR [rax],0x0    ; 在*p写入0，设置C字符串终止符
+    do {
+        unsigned int digit = (unsigned int)(value % 10);
+   140001526:	48 8b 45 b0          	mov    rax,QWORD PTR [rbp-0x50]    ; 把value低64位加载到RAX
+   14000152a:	48 8b 55 b8          	mov    rdx,QWORD PTR [rbp-0x48]    ; 把value高64位加载到RDX
+   14000152e:	48 8d 4d a0          	lea    rcx,[rbp-0x60]    ; RCX指向栈上的128位被除数临时副本
+   140001532:	4c 8d 45 90          	lea    r8,[rbp-0x70]    ; R8指向栈上的128位除数10
+   140001536:	48 89 45 a0          	mov    QWORD PTR [rbp-0x60],rax    ; 把被除数低64位写入临时副本
+   14000153a:	48 89 55 a8          	mov    QWORD PTR [rbp-0x58],rdx    ; 把被除数高64位写入临时副本
+   14000153e:	48 c7 45 90 0a 00 00 	mov    QWORD PTR [rbp-0x70],0xa    ; 把除数10的低64位写入临时对象
+   140001545:	00 
+   140001546:	48 c7 45 98 00 00 00 	mov    QWORD PTR [rbp-0x68],0x0    ; 把除数10的高64位清零（完整128位十）
+   14000154d:	00 
+   14000154e:	4c 89 c2             	mov    rdx,r8    ; 把除数对象地址送入RDX，配合RCX传参
+   140001551:	e8 6a 13 00 00       	call   1400028c0 <__umodti3>    ; 调用GCC的128位取模辅助函数__umodti3：value % 10
+   140001556:	0f 29 45 80          	movaps XMMWORD PTR [rbp-0x80],xmm0    ; 将XMM0中的128位余数临时写入栈
+   14000155a:	48 8b 45 80          	mov    rax,QWORD PTR [rbp-0x80]    ; 取余数低64位
+   14000155e:	48 8b 55 88          	mov    rdx,QWORD PTR [rbp-0x78]    ; 读取余数高64位（在这里余数0~9，高位应为0）
+   140001562:	89 45 f4             	mov    DWORD PTR [rbp-0xc],eax    ; 把十进制个位余数保存为32位digit
+        *--p = (char)('0' + digit);
+   140001565:	8b 45 f4             	mov    eax,DWORD PTR [rbp-0xc]    ; 取出digit
+   140001568:	83 c0 30             	add    eax,0x30    ; 数字加0x30转换成ASCII字符0~9
+   14000156b:	48 83 6d f8 01       	sub    QWORD PTR [rbp-0x8],0x1    ; 先将p减1，实现--p；从缓冲区右往左写
+   140001570:	89 c2                	mov    edx,eax    ; 把字符值放到EDX（DL保存低8位）
+   140001572:	48 8b 45 f8          	mov    rax,QWORD PTR [rbp-0x8]    ; 取当前p指针
+   140001576:	88 10                	mov    BYTE PTR [rax],dl    ; 写入1字节字符：*p=DL
+        value /= 10;
+   140001578:	48 8b 45 b0          	mov    rax,QWORD PTR [rbp-0x50]    ; 读取value低64位
+   14000157c:	48 8b 55 b8          	mov    rdx,QWORD PTR [rbp-0x48]    ; 读取value高64位
+   140001580:	48 8d 4d a0          	lea    rcx,[rbp-0x60]    ; 准备128位被除数存储地址
+   140001584:	4c 8d 45 90          	lea    r8,[rbp-0x70]    ; 准备128位除数10的地址
+   140001588:	48 89 45 a0          	mov    QWORD PTR [rbp-0x60],rax    ; 更新被除数临时副本的低64位
+   14000158c:	48 89 55 a8          	mov    QWORD PTR [rbp-0x58],rdx    ; 更新被除数临时副本的高64位
+   140001590:	48 c7 45 90 0a 00 00 	mov    QWORD PTR [rbp-0x70],0xa    ; 写入除数10的低64位
+   140001597:	00 
+   140001598:	48 c7 45 98 00 00 00 	mov    QWORD PTR [rbp-0x68],0x0    ; 除数高64位置0
+   14000159f:	00 
+   1400015a0:	4c 89 c2             	mov    rdx,r8    ; RDX传入除数的地址
+   1400015a3:	e8 d8 11 00 00       	call   140002780 <__udivti3>    ; 调用__udivti3执行128位无符号除法：value / 10
+   1400015a8:	0f 29 45 b0          	movaps XMMWORD PTR [rbp-0x50],xmm0    ; 用返回的128位商覆盖value
+    } while (value != 0);
+   1400015ac:	48 8b 45 b0          	mov    rax,QWORD PTR [rbp-0x50]    ; 取商的低64位
+   1400015b0:	48 0b 45 b8          	or     rax,QWORD PTR [rbp-0x48]    ; 与商的高64位做OR；两个部分均0时结果才是0
+   1400015b4:	0f 85 6c ff ff ff    	jne    140001526 <print_u128+0x36>    ; 商不为0则回到循环开头，继续提取下一位
+    puts(p);
+   1400015ba:	48 8b 45 f8          	mov    rax,QWORD PTR [rbp-0x8]    ; 取得从后往前生成的十进制字符串起点p
+   1400015be:	48 89 c1             	mov    rcx,rax    ; 把p作为puts第一个参数送到RCX
+   1400015c1:	e8 22 17 00 00       	call   140002ce8 <puts>    ; 调用puts输出字符串并自动换行
+}
+   1400015c6:	90                   	nop    ; 无操作填充指令
+   1400015c7:	48 81 c4 a8 00 00 00 	add    rsp,0xa8    ; 释放print_u128分配的0xA8字节栈空间
+   1400015ce:	5b                   	pop    rbx    ; 恢复RBX
+   1400015cf:	5d                   	pop    rbp    ; 恢复RBP
+   1400015d0:	c3                   	ret    ; RET返回main
+
+; 
+; =================================================================
+; 【main】 【核心】读取n、校验1~100、调用fib并输出
+; =================================================================
+00000001400015d1 <main>:
+
+int main(void)
+{
+   1400015d1:	55                   	push   rbp    ; 把旧RBP压栈保存
+   1400015d2:	48 89 e5             	mov    rbp,rsp    ; 以当前RSP建立main栈帧
+   1400015d5:	48 83 ec 40          	sub    rsp,0x40    ; 为main局部变量和调用空间分配0x40=64字节
+   1400015d9:	e8 42 01 00 00       	call   140001720 <__main>    ; 调用MinGW的__main运行时初始化辅助函数
+    unsigned int n;
+    printf("Input n (1..100): ");
+   1400015de:	48 8d 05 1b 2a 00 00 	lea    rax,[rip+0x2a1b]        # 140004000 <.rdata>    ; 用LEA取得提示文字Input n...(位于只读数据段)的地址
+   1400015e5:	48 89 c1             	mov    rcx,rax    ; RCX=字符串地址（printf首参数）
+   1400015e8:	e8 43 15 00 00       	call   140002b30 <printf>    ; 调用printf显示输入提示
+    if (scanf("%u", &n) != 1 || n < 1 || n > 100) {
+   1400015ed:	48 8d 45 fc          	lea    rax,[rbp-0x4]    ; 得到局部变量n地址：&n为[rbp-4]
+   1400015f1:	48 8d 0d 1b 2a 00 00 	lea    rcx,[rip+0x2a1b]        # 140004013 <.rdata+0x13>    ; 得到格式串"%u"的地址
+   1400015f8:	48 89 c2             	mov    rdx,rax    ; RDX=&n（scanf第二参数）
+   1400015fb:	e8 e0 14 00 00       	call   140002ae0 <scanf>    ; 调用scanf("%u",&n)；RCX是格式串地址
+   140001600:	83 f8 01             	cmp    eax,0x1    ; 比较scanf返回值与1（是否成功读入1项）
+   140001603:	75 0f                	jne    140001614 <main+0x43>    ; 不等于1，跳到无效输入提示
+   140001605:	8b 45 fc             	mov    eax,DWORD PTR [rbp-0x4]    ; 把n载入EAX
+   140001608:	85 c0                	test   eax,eax    ; 测试n是否为0，设置ZF
+   14000160a:	74 08                	je     140001614 <main+0x43>    ; n==0则判定无效
+   14000160c:	8b 45 fc             	mov    eax,DWORD PTR [rbp-0x4]    ; 再次取n
+   14000160f:	83 f8 64             	cmp    eax,0x64    ; 将n与0x64=100比较
+   140001612:	76 16                	jbe    14000162a <main+0x59>    ; 无符号n<=100则跳转正常分支；否则无效
+        puts("Invalid input. Please enter 1..100.");
+   140001614:	48 8d 05 fd 29 00 00 	lea    rax,[rip+0x29fd]        # 140004018 <.rdata+0x18>    ; 获取无效输入提示字符串地址
+   14000161b:	48 89 c1             	mov    rcx,rax    ; RCX传入该字符串
+   14000161e:	e8 c5 16 00 00       	call   140002ce8 <puts>    ; 调用puts输出错误信息
+        return 1;
+   140001623:	b8 01 00 00 00       	mov    eax,0x1    ; EAX=1，准备返回错误退出码
+   140001628:	eb 2e                	jmp    140001658 <main+0x87>    ; 跳到统一的函数尾声
+    }
+    printf("F(n) = ");
+   14000162a:	48 8d 05 0b 2a 00 00 	lea    rax,[rip+0x2a0b]        # 14000403c <.rdata+0x3c>    ; 取得字符串"F(n) = "的地址
+   140001631:	48 89 c1             	mov    rcx,rax    ; RCX=字符串地址
+   140001634:	e8 f7 14 00 00       	call   140002b30 <printf>    ; 调用printf输出结果前缀
+    print_u128(fib(n));
+   140001639:	8b 45 fc             	mov    eax,DWORD PTR [rbp-0x4]    ; 从栈上局部变量读取n
+   14000163c:	89 c1                	mov    ecx,eax    ; ECX=n，fib的首个整数参数
+   14000163e:	e8 fd fd ff ff       	call   140001440 <fib>    ; 调用fib(n)，返回128位斐波那契数
+   140001643:	0f 29 45 e0          	movaps XMMWORD PTR [rbp-0x20],xmm0    ; 把XMM0返回的128位结果写到栈上临时位置
+   140001647:	48 8d 45 e0          	lea    rax,[rbp-0x20]    ; 计算这个128位临时结果的地址
+   14000164b:	48 89 c1             	mov    rcx,rax    ; RCX指向128位参数的内存副本（Windows x64按引用传递该值）
+   14000164e:	e8 9d fe ff ff       	call   1400014f0 <print_u128>    ; 调用print_u128打印大整数
+    return 0;
+   140001653:	b8 00 00 00 00       	mov    eax,0x0    ; EAX=0，主程序成功退出
+}
+   140001658:	48 83 c4 40          	add    rsp,0x40    ; 释放main的0x40字节局部栈空间
+   14000165c:	5d                   	pop    rbp    ; 恢复旧RBP
+   14000165d:	c3                   	ret    ; 返回调用者（C运行时）
+   14000165e:	90                   	nop    ; 编译器填充的NOP，与逻辑无关
+   14000165f:	90                   	nop    ; 编译器填充的NOP，与逻辑无关
+
